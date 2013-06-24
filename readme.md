@@ -1,7 +1,7 @@
 weRenamer
 =====
 
-Treat a directory listing like a text file to rename files intuitively. A work in progress.
+Treat a directory listing like a text file to rename files intuitively.
 
 ## Dependencies
 
