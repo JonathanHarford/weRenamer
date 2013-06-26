@@ -87,13 +87,17 @@ class MainWindow(wx.Frame):
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_YES:
+            self.rename()
             self.Destroy()
-            self.rename(self.field2.GetValue().split("\n"))
         elif result == wx.ID_NO:
             logging.info("NOT RENAMING")
             self.Destroy()
 
+    def update_new_names(self):
+        self.new_names = self.field2.GetValue().split("\n")
+        
     def rename(self):
+        self.update_new_names()
         for oldname, newname in zip(self.filenames, self.new_names):
             if oldname <> newname:
                 print oldname + " => " + newname
