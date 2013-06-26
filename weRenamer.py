@@ -32,8 +32,11 @@ class MainWindow(wx.Frame):
         mainsizer = wx.BoxSizer(wx.HORIZONTAL)
         mainpanel.SetSizer(mainsizer)
 
+        font = wx.Font(10, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         self.field1 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_DONTWRAP | wx.TE_READONLY)
+        self.field1.SetFont(font)
         self.field2 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_DONTWRAP)
+        self.field2.SetFont(font)
 
         mainsizer.Add(self.field1, 1, wx.GROW)
         mainsizer.Add(self.field2, 1, wx.GROW)
@@ -44,10 +47,19 @@ class MainWindow(wx.Frame):
         self.mainpanel = mainpanel
         self.mainsizer = mainsizer
 
-    def add_filenames(self, filenames):
-        self.field1.SetValue("\n".join(filenames))
-        self.field2.SetValue("\n".join(filenames))
+    def set_filenames(self, filenames, new_names):
+            
+        def strip_textctrl(t):
+            t.SetValue(t.GetValue().strip())  # Ugh. More elegant way?
+        
+        for filename, new_name in zip(filenames,new_names):
+            self.field1.AppendText(filename + "\n")
+            self.field2.AppendText(new_name + "\n")
+        strip_textctrl(self.field1)
+        strip_textctrl(self.field2)
+         
         self.filenames = filenames
+        self.new_names = new_names
         
     def onKey(self, evt):
         if evt.GetKeyCode() == wx.WXK_ESCAPE:
@@ -76,8 +88,8 @@ class MainWindow(wx.Frame):
             logging.info("NOT RENAMING")
             self.Destroy()
 
-    def rename(self, new_names):
-        for oldname, newname in zip(self.filenames, new_names):
+    def rename(self):
+        for oldname, newname in zip(self.filenames, self.new_names):
             if oldname <> newname:
                 print oldname + " => " + newname
                 os.rename(oldname, newname)
@@ -86,6 +98,6 @@ if __name__ == '__main__':
 
     app = wx.App(False)
     frame = MainWindow(None, 'weRenamer')
-    frame.add_filenames(os.listdir("."))
+    frame.set_filenames(os.listdir("."), os.listdir("."))
     app.MainLoop()
 
