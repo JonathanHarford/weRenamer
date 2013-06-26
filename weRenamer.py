@@ -14,6 +14,12 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.expando import ExpandoTextCtrl
 
+FONT_FLAGS = (10, 
+              wx.FONTFAMILY_TELETYPE, 
+              wx.FONTSTYLE_NORMAL, 
+              wx.FONTWEIGHT_NORMAL)
+
+
 class MainWindow(wx.Frame):
     
     def __init__(self, parent, title):
@@ -32,11 +38,10 @@ class MainWindow(wx.Frame):
         mainsizer = wx.BoxSizer(wx.HORIZONTAL)
         mainpanel.SetSizer(mainsizer)
 
-        font = wx.Font(10, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         self.field1 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_DONTWRAP | wx.TE_READONLY)
-        self.field1.SetFont(font)
+        self.field1.SetFont(wx.Font(*FONT_FLAGS))
         self.field2 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_DONTWRAP)
-        self.field2.SetFont(font)
+        self.field2.SetFont(wx.Font(*FONT_FLAGS))
 
         mainsizer.Add(self.field1, 1, wx.GROW)
         mainsizer.Add(self.field2, 1, wx.GROW)
