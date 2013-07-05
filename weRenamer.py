@@ -9,7 +9,7 @@ Created on Jun 8, 2013
 import logging
 logging.basicConfig(format='%(message)s', level=logging.DEBUG)
 
-import os
+import os, os.path
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.expando import ExpandoTextCtrl
@@ -21,6 +21,45 @@ FONT_FLAGS = (10,
 
 ICON_SIZE = (16, 16)
 
+class RenameCmd(object):
+    """A RenameCmd is a pair of strings describing an intended file renaming."""
+    
+    def __init__(self, filename):
+        (self.oldname, self.oldext) = os.path.splitext(filename)   
+        (self.newname, self.newext) = os.path.splitext(filename)
+        if os.path.isdir(filename):
+            self.filetype = "dir"
+        elif filename.startswith("."):
+            self.filetype = "hidden"
+        else:
+            self.filetype = "file"
+        
+    
+    def __str__(self):
+        return self.fulloldname + " => " + self.fullnewname + " (" + self.filetype + ")"
+    
+    @property
+    def fulloldname(self):
+        return self.oldname + self.oldext
+
+    @property
+    def fullnewname(self):
+        return self.newname + self.newext
+
+    def refresh(self, newfullname):
+        (self.newname, self.newext) = os.path.splitext(newfullname)
+
+    def execute(self):
+        """Executes the renaming."""
+        if self.ischanged():
+            logging.info( str(self))
+            os.rename(self.fulloldname, self.fullnewname)
+        else:         
+            logging.info(self.fulloldname + " unchanged.")
+            
+    def ischanged(self):
+        return self.fulloldname <> self.fullnewname
+
 class MainWindow(wx.Frame):
     
     def __init__(self, parent, title):
@@ -30,6 +69,12 @@ class MainWindow(wx.Frame):
         self.Centre()
         self.Show()
 
+    def showdirs(self, evt):
+        if self.btn_showdirs.IsToggled():
+            logging.info("showdirs checked.")
+        else:        
+            logging.info("showdirs unchecked.")
+        
     def init_layout(self):
 
         mainpanel = ScrolledPanel(self, -1)
@@ -41,14 +86,14 @@ class MainWindow(wx.Frame):
         toolbar = self.CreateToolBar(style=wx.TB_3DBUTTONS)
         
         ico_showdirs = wx.ArtProvider.GetBitmap(wx.ART_NEW_DIR, wx.ART_TOOLBAR, ICON_SIZE)
-        tool_showdirs = toolbar.AddCheckLabelTool(wx.ID_ANY, "Toggle inclusion of directories", ico_showdirs, shortHelp="Show directories?")
-        # self.Bind(wx.EVT_TOOLBAR, self.showdirs, tool_showdirs)
-        
+        self.btn_showdirs = toolbar.AddCheckLabelTool(wx.ID_ANY, "Toggle inclusion of directories", ico_showdirs, shortHelp="Show directories?")
+        self.Bind(wx.EVT_TOOL, self.showdirs, self.btn_showdirs)
+
         ico_showexts = wx.ArtProvider.GetBitmap(wx.ART_FIND_AND_REPLACE, wx.ART_TOOLBAR, ICON_SIZE)
-        tool_showexts = toolbar.AddCheckLabelTool(wx.ID_ANY, "Toggle inclusion of file extensions", ico_showexts, shortHelp="Show file extensions?")
+        self.btn_showexts = toolbar.AddCheckLabelTool(wx.ID_ANY, "Toggle inclusion of file extensions", ico_showexts, shortHelp="Show file extensions?")
         
         ico_showhids = wx.ArtProvider.GetBitmap(wx.ART_QUESTION, wx.ART_TOOLBAR, ICON_SIZE)
-        tool_showhids = toolbar.AddCheckLabelTool(wx.ID_ANY, "Toggle inclusion of hidden files", ico_showhids, shortHelp="Show hidden files?")
+        self.btn_showhids = toolbar.AddCheckLabelTool(wx.ID_ANY, "Toggle inclusion of hidden files", ico_showhids, shortHelp="Show hidden files?")
         
         toolbar.Realize()
         
@@ -67,20 +112,25 @@ class MainWindow(wx.Frame):
         self.toolbar = toolbar
         self.mainsizer = mainsizer
 
-    def set_filenames(self, filenames, new_names):
-            
+    def init_renames(self, filenames):
+        self.rename_cmds = [RenameCmd(filename) for filename in filenames]
+
+    def load_renames_into_textctrls(self):
+
         def strip_textctrl(t):
-            t.SetValue(t.GetValue().strip())  # Ugh. More elegant way?
+            t.SetValue(t.GetValue().strip())  # Hm. More elegant way?
         
-        for filename, new_name in zip(filenames, new_names):
-            self.field1.AppendText(filename + "\n")
-            self.field2.AppendText(new_name + "\n")
+        for r in self.rename_cmds:
+            self.field1.AppendText(r.fulloldname + "\n")
+            self.field2.AppendText(r.fullnewname + "\n")
         strip_textctrl(self.field1)
-        strip_textctrl(self.field2)
-         
-        self.filenames = filenames
-        self.new_names = new_names
+        strip_textctrl(self.field2)        
         
+    def refresh_renames(self):
+        newnames = self.field2.GetValue().split("\n")
+        for rename, newname in zip(self.rename_cmds, newnames):
+            rename.refresh(newname)
+
     def onKey(self, evt):
         if evt.GetKeyCode() == wx.WXK_ESCAPE:
             self.OnClose(evt)
@@ -89,35 +139,37 @@ class MainWindow(wx.Frame):
 
     def OnClose(self, event):
         
-        # If there's no changes, we can just close.
+        ## If there's no changes, we can just close.
+        
         if self.field1.GetValue() == self.field2.GetValue(): 
             self.Destroy()
+            logging.info("Renaming canceled.")
             return
 
         dlg = wx.MessageDialog(self,
-                               "Rename?",
+                               "RenameCmd?",
                                "Confirm Renaming",
                                wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
         
         result = dlg.ShowModal()
+        
         dlg.Destroy()
+
         if result == wx.ID_YES:
             self.Destroy()
-            self.rename(self.field2.GetValue().split("\n"))
+            self.refresh_renames()
+            for r in self.rename_cmds:
+                r.execute()
+                
         elif result == wx.ID_NO:
-            logging.info("NOT RENAMING")
+            logging.info("Renaming canceled.")
             self.Destroy()
 
-    def rename(self):
-        for oldname, newname in zip(self.filenames, self.new_names):
-            if oldname <> newname:
-                print oldname + " => " + newname
-                os.rename(oldname, newname)
 
 if __name__ == '__main__':
-
     app = wx.App(False)
     frame = MainWindow(None, 'weRenamer')
-    frame.set_filenames(os.listdir("."), os.listdir("."))
+    frame.init_renames(os.listdir("."))
+    frame.load_renames_into_textctrls()
     app.MainLoop()
 
