@@ -14,10 +14,15 @@ import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.expando import ExpandoTextCtrl
 
-FONT_FLAGS = (10,
-              wx.FONTFAMILY_TELETYPE,
-              wx.FONTSTYLE_NORMAL,
-              wx.FONTWEIGHT_NORMAL)
+FONT_OLD = (10,
+              wx.TELETYPE,
+              wx.NORMAL,
+              wx.NORMAL)
+
+FONT_NEW= (10,
+              wx.TELETYPE,
+              wx.NORMAL,
+              wx.BOLD)
 
 ICON_SIZE = (16, 16)
 
@@ -70,10 +75,12 @@ class MainWindow(wx.Frame):
         self.Show()
 
     def showdirs(self, evt):
+        self.load_textctrls_into_renamecmds()
         if self.btn_showdirs.IsToggled():
             logging.info("showdirs checked.")
         else:        
             logging.info("showdirs unchecked.")
+        self.load_renamecmds_into_textctrls()
         
     def init_layout(self):
 
@@ -98,11 +105,11 @@ class MainWindow(wx.Frame):
         toolbar.Realize()
         
         field1 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        field1.SetFont(wx.Font(*FONT_FLAGS))
+        field1.SetFont(wx.Font(*FONT_OLD))
         field1.SetBackgroundColour(wx.LIGHT_GREY)
         
         field2 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE)
-        field2.SetFont(wx.Font(*FONT_FLAGS))
+        field2.SetFont(wx.Font(*FONT_OLD))
 
         mainsizer.Add(field1, 1, wx.GROW)
         mainsizer.Add(field2, 1, wx.GROW)
@@ -116,34 +123,47 @@ class MainWindow(wx.Frame):
         self.field1 = field1
         self.field2 = field2
 
-    def init_renames(self, filenames):
+    def init_renamecmds(self, filenames):
         self.rename_cmds = [RenameCmd(filename) for filename in filenames]
-
-    def load_renames_into_textctrls(self):
+        
+    def load_renamecmds_into_textctrls(self):
 
         def strip_textctrl(t):
             t.SetValue(t.GetValue().strip())  # Hm. More elegant way?
+            
+        self.field1.Clear()
+        self.field2.Clear()
+        bold_starts = []
+        bold_ends = []
         
         for r in self.rename_cmds:
+            
             self.field1.AppendText(r.fulloldname + "\n")
+            
+            if r.ischanged(): bold_starts.append(self.field2.InsertionPoint)
             self.field2.AppendText(r.fullnewname + "\n")
+            if r.ischanged(): bold_ends.append(self.field2.InsertionPoint)
+            
         strip_textctrl(self.field1)
-        strip_textctrl(self.field2)        
+        strip_textctrl(self.field2)
+        for bold_start, bold_end in zip(bold_starts,bold_ends):
+            self.field2.SetStyle(bold_start, bold_end, wx.TextAttr("black", "white", wx.Font(*FONT_NEW)))
+ 
         
-    def refresh_renames(self):
+    def load_textctrls_into_renamecmds(self):
         newnames = self.field2.GetValue().split("\n")
         for rename, newname in zip(self.rename_cmds, newnames):
             rename.refresh(newname)
 
     def onKey(self, evt):
+        self.load_textctrls_into_renamecmds()
         if evt.GetKeyCode() == wx.WXK_ESCAPE:
             self.OnClose(evt)
         else:
             evt.Skip()
+                        
 
     def OnClose(self, event):
-        
-        ## If there's no changes, we can just close.
         
         if self.field1.GetValue() == self.field2.GetValue(): 
             self.Destroy()
@@ -161,7 +181,7 @@ class MainWindow(wx.Frame):
 
         if result == wx.ID_YES:
             self.Destroy()
-            self.refresh_renames()
+            self.load_textctrls_into_renamecmds()
             for r in self.rename_cmds:
                 r.execute()
                 
@@ -173,8 +193,8 @@ class MainWindow(wx.Frame):
 if __name__ == '__main__':
     app = wx.App(False)
     frame = MainWindow(None, 'weRenamer')
-    frame.init_renames(os.listdir("."))
-    frame.load_renames_into_textctrls()
+    frame.init_renamecmds(os.listdir("."))
+    frame.load_renamecmds_into_textctrls()
     app.MainLoop()
 
 
