@@ -125,12 +125,13 @@ class MainWindow(wx.Frame):
 
     def init_renamecmds(self, filenames):
         self.rename_cmds = [RenameCmd(filename) for filename in filenames]
+        self.load_renamecmds_into_textctrls()
         
     def load_renamecmds_into_textctrls(self):
 
         def strip_textctrl(t):
             t.SetValue(t.GetValue().strip())  # Hm. More elegant way?
-            
+
         self.field1.Clear()
         self.field2.Clear()
         bold_starts = []
@@ -154,6 +155,10 @@ class MainWindow(wx.Frame):
         newnames = self.field2.GetValue().split("\n")
         for rename, newname in zip(self.rename_cmds, newnames):
             rename.refresh(newname)
+            
+    def sync(self):
+        self.load_textctrls_into_renamecmds()
+        self.load_renamecmds_into_textctrls()
 
     def onKey(self, evt):
         self.load_textctrls_into_renamecmds()
@@ -194,7 +199,6 @@ if __name__ == '__main__':
     app = wx.App(False)
     frame = MainWindow(None, 'weRenamer')
     frame.init_renamecmds(os.listdir("."))
-    frame.load_renamecmds_into_textctrls()
     app.MainLoop()
 
 
