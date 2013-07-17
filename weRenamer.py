@@ -7,9 +7,9 @@ Created on Jun 8, 2013
 '''
 
 import logging
-logging.basicConfig(format='%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(message)s', level=logging.DEBUG) ## use: logging.info("Message")
 
-import os, os.path
+import os.path
 import wx
 from wx.lib.scrolledpanel import ScrolledPanel
 from wx.lib.expando import ExpandoTextCtrl
@@ -25,6 +25,23 @@ FONT_NEW= (10,
               wx.BOLD)
 
 ICON_SIZE = (16, 16)
+
+def load_renamecmds_into_textctrls(rename_cmds, field_o, field_n):
+
+    field_o.Clear()
+    field_n.Clear()
+    
+    field_o.AppendText(rename_cmds.get_olds())
+    field_n.AppendText(rename_cmds.get_news())
+
+    for bold_start, bold_end in rename_cmds.get_bolds():
+        field_n.SetStyle(bold_start, bold_end, wx.TextAttr("black", "white", wx.Font(*FONT_NEW)))
+    
+def load_textctrls_into_renamecmds(rename_cmds, field_n):
+    newnames = field_n.GetValue().split("\n")
+    for rename, newname in zip(rename_cmds, newnames):
+        rename.refresh(newname)
+
 
 class RenameCmd(object):
     """A RenameCmd is a pair of strings describing an intended file renaming."""
@@ -65,6 +82,24 @@ class RenameCmd(object):
     def ischanged(self):
         return self.fulloldname <> self.fullnewname
 
+class RenameCmds(list):
+
+    def get_olds(self):
+        return "\n".join([cmd.fulloldname for cmd in self])
+
+    def get_news(self):
+        return "\n".join([cmd.fullnewname for cmd in self])            
+
+    def get_bolds(self):
+        cur = 0
+        bolds = []
+        for cmd in self:
+            if cmd.ischanged():
+                bolds.append((cur, cur + len(cmd.fullnewname)))
+                logging.info("Change: {} {}".format(cmd, bolds[-1]))
+            cur = cur + len(cmd.fullnewname) + 1
+        return bolds
+
 class MainWindow(wx.Frame):
     
     def __init__(self, parent, title):
@@ -73,14 +108,14 @@ class MainWindow(wx.Frame):
         self.init_layout()    
         self.Centre()
         self.Show()
-
+        
     def showdirs(self, evt):
-        self.load_textctrls_into_renamecmds()
+        load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
         if self.btn_showdirs.IsToggled():
             logging.info("showdirs checked.")
         else:        
             logging.info("showdirs unchecked.")
-        self.load_renamecmds_into_textctrls()
+        load_renamecmds_into_textctrls(self.rename_cmds, self.field_o, self.field_n)
         
     def init_layout(self):
 
@@ -104,15 +139,15 @@ class MainWindow(wx.Frame):
         
         toolbar.Realize()
         
-        field1 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        field1.SetFont(wx.Font(*FONT_OLD))
-        field1.SetBackgroundColour(wx.LIGHT_GREY)
+        field_o = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        field_o.SetFont(wx.Font(*FONT_OLD))
+        field_o.SetBackgroundColour(wx.LIGHT_GREY)
         
-        field2 = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE)
-        field2.SetFont(wx.Font(*FONT_OLD))
+        field_n = ExpandoTextCtrl(mainpanel, style=wx.TE_MULTILINE)
+        field_n.SetFont(wx.Font(*FONT_OLD))
 
-        mainsizer.Add(field1, 1, wx.GROW)
-        mainsizer.Add(field2, 1, wx.GROW)
+        mainsizer.Add(field_o, 1, wx.GROW)
+        mainsizer.Add(field_n, 1, wx.GROW)
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.Bind(wx.EVT_CHAR_HOOK, self.onKey)
@@ -120,48 +155,19 @@ class MainWindow(wx.Frame):
         self.mainpanel = mainpanel
         self.toolbar = toolbar
         self.mainsizer = mainsizer
-        self.field1 = field1
-        self.field2 = field2
+        self.field_o = field_o
+        self.field_n = field_n
 
     def init_renamecmds(self, filenames):
-        self.rename_cmds = [RenameCmd(filename) for filename in filenames]
-        self.load_renamecmds_into_textctrls()
+        self.rename_cmds = RenameCmds([RenameCmd(filename) for filename in filenames])
+        load_renamecmds_into_textctrls(self.rename_cmds, self.field_o, self.field_n)
         
-    def load_renamecmds_into_textctrls(self):
-
-        def strip_textctrl(t):
-            t.SetValue(t.GetValue().strip())  # Hm. More elegant way?
-
-        self.field1.Clear()
-        self.field2.Clear()
-        bold_starts = []
-        bold_ends = []
-        
-        for r in self.rename_cmds:
-            
-            self.field1.AppendText(r.fulloldname + "\n")
-            
-            if r.ischanged(): bold_starts.append(self.field2.InsertionPoint)
-            self.field2.AppendText(r.fullnewname + "\n")
-            if r.ischanged(): bold_ends.append(self.field2.InsertionPoint)
-            
-        strip_textctrl(self.field1)
-        strip_textctrl(self.field2)
-        for bold_start, bold_end in zip(bold_starts,bold_ends):
-            self.field2.SetStyle(bold_start, bold_end, wx.TextAttr("black", "white", wx.Font(*FONT_NEW)))
- 
-        
-    def load_textctrls_into_renamecmds(self):
-        newnames = self.field2.GetValue().split("\n")
-        for rename, newname in zip(self.rename_cmds, newnames):
-            rename.refresh(newname)
-            
     def sync(self):
-        self.load_textctrls_into_renamecmds()
-        self.load_renamecmds_into_textctrls()
+        load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
+        load_renamecmds_into_textctrls(self.rename_cmds, self.field_o, self.field_n)
 
     def onKey(self, evt):
-        self.load_textctrls_into_renamecmds()
+        load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
         if evt.GetKeyCode() == wx.WXK_ESCAPE:
             self.OnClose(evt)
         else:
@@ -170,7 +176,7 @@ class MainWindow(wx.Frame):
 
     def OnClose(self, event):
         
-        if self.field1.GetValue() == self.field2.GetValue(): 
+        if self.field_o.GetValue() == self.field_n.GetValue(): 
             self.Destroy()
             logging.info("Renaming canceled.")
             return
@@ -186,7 +192,7 @@ class MainWindow(wx.Frame):
 
         if result == wx.ID_YES:
             self.Destroy()
-            self.load_textctrls_into_renamecmds()
+            load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
             for r in self.rename_cmds:
                 r.execute()
                 
