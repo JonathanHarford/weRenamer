@@ -26,23 +26,6 @@ FONT_NEW= (10,
 
 ICON_SIZE = (16, 16)
 
-def load_renamecmds_into_textctrls(rename_cmds, field_o, field_n):
-
-    field_o.Clear()
-    field_n.Clear()
-    
-    field_o.AppendText(rename_cmds.get_olds())
-    field_n.AppendText(rename_cmds.get_news())
-
-    for bold_start, bold_end in rename_cmds.get_bolds():
-        field_n.SetStyle(bold_start, bold_end, wx.TextAttr("black", "white", wx.Font(*FONT_NEW)))
-    
-def load_textctrls_into_renamecmds(rename_cmds, field_n):
-    newnames = field_n.GetValue().split("\n")
-    for rename, newname in zip(rename_cmds, newnames):
-        rename.refresh(newname)
-
-
 class RenameCmd(object):
     """A RenameCmd is a pair of strings describing an intended file renaming."""
     
@@ -59,7 +42,7 @@ class RenameCmd(object):
     
     def __str__(self):
         return '''{}: "{}" => "{}"'''.format(self.filetype, self.fulloldname, self.fullnewname)
-    
+
     @property
     def fulloldname(self):
         return self.oldname + self.oldext
@@ -83,6 +66,22 @@ class RenameCmd(object):
         return self.fulloldname <> self.fullnewname
 
 class RenameCmds(list):
+
+    def load_from_textctrls(self, field_n):
+        newnames = field_n.GetValue().split("\n")
+        for rename, newname in zip(self, newnames):
+            rename.refresh(newname)
+
+    def load_to_textctrls(self, field_o, field_n):
+        field_o.Clear()
+        field_n.Clear()
+        
+        field_o.AppendText(self.get_olds())
+        field_n.AppendText(self.get_news())
+    
+        for bold_start, bold_end in self.get_bolds():
+            field_n.SetStyle(bold_start, bold_end, wx.TextAttr("black", "white", wx.Font(*FONT_NEW)))
+        
 
     def get_olds(self):
         return "\n".join([cmd.fulloldname for cmd in self])
@@ -110,12 +109,12 @@ class MainWindow(wx.Frame):
         self.Show()
         
     def showdirs(self, evt):
-        load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
+        self.rename_cmds.load_from_textctrls(self.field_n)
         if self.btn_showdirs.IsToggled():
             logging.info("showdirs checked.")
         else:        
             logging.info("showdirs unchecked.")
-        load_renamecmds_into_textctrls(self.rename_cmds, self.field_o, self.field_n)
+        self.rename_cmds.load_to_textctrls(self.field_o, self.field_n)
         
     def init_layout(self):
 
@@ -160,14 +159,14 @@ class MainWindow(wx.Frame):
 
     def init_renamecmds(self, filenames):
         self.rename_cmds = RenameCmds([RenameCmd(filename) for filename in filenames])
-        load_renamecmds_into_textctrls(self.rename_cmds, self.field_o, self.field_n)
+        self.rename_cmds.load_to_textctrls(self.field_o, self.field_n)
         
     def sync(self):
-        load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
-        load_renamecmds_into_textctrls(self.rename_cmds, self.field_o, self.field_n)
+        self.rename_cmds.load_from_textctrls(self.field_n)
+        self.rename_cmds.load_to_textctrls(self.field_o, self.field_n)
 
     def onKey(self, evt):
-        load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
+        self.rename_cmds.load_from_textctrls(self.field_n)
         if evt.GetKeyCode() == wx.WXK_ESCAPE:
             self.OnClose(evt)
         else:
@@ -192,7 +191,7 @@ class MainWindow(wx.Frame):
 
         if result == wx.ID_YES:
             self.Destroy()
-            load_textctrls_into_renamecmds(self.rename_cmds, self.field_n)
+            self.rename_cmds.load_from_textctrls(self.field_n)
             for r in self.rename_cmds:
                 r.execute()
                 
